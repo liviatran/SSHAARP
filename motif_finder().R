@@ -1,4 +1,4 @@
-##motif_finder() + isolate population allele frequencies for a given motif 
+##motif_finder() + PAL()
 #v 0.2
 #By: Liv Tran
 #5/15/19
@@ -236,9 +236,12 @@ AWMs<-motif_finder("DRB1*26F~28E~30Y")
 #example with non-exisent motif 
 motif_finder("DRB1*26F~28E~30Z")
 
-
+#Population Allele Locator (PAL) function
+#An independent function for getting allele frequencies from a population for a given motif 
+#for the Solberg dataset 
+PAL<-function(dataset){
 #reads in Solberg DS
-solberg_DS<-as.data.frame(read.delim("1-locus-alleles.dat"), stringsAsFactors=F)
+solberg_DS<-as.data.frame(read.delim(dataset), stringsAsFactors=F)
 
 #makes a new column with locus and trimmed allele pasted together named locus_allele
 solberg_DS$locus_allele<-paste(solberg_DS$locus, solberg_DS$allele_v3, sep="*")
@@ -286,8 +289,11 @@ for(i in 1:length(PAF)){
   #if a PAF name has duplicates, the allele frequencies are summed
   #PAF names with only one allele value are used and unaffected by the sum() function 
   PAF[[i]]<-sum(unlist(PAF[[i]])[!is.na(unlist(PAF[[i]]))])
-  }
- 
-View(PAF) 
+}
+return(PAF)
+}
+
+#example of PAL()
+PAL("1-locus-alleles.dat") 
 
 
