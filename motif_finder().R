@@ -1,7 +1,7 @@
-##motif_finder()
-#v 0.1
+##motif_finder() + isolate population allele frequencies for a given motif 
+#v 0.2
 #By: Liv Tran
-#5/10/19
+#5/15/19
 
 
 ###old script to get AA_segments
@@ -9,6 +9,7 @@
 require(data.table)
 require(stringr)
 require(BIGDAWG)
+require(gtools)
 
 ###REQUIRED FUNCTIONS:
 #function to count spaces in between regions of interest
@@ -201,8 +202,7 @@ pepsplit<-refexon<-AA_aligned<-AA_segments<-inDels<-corr_table<-cols<-downloaded
   }
 
 
-
-#new script stuff 
+#### start script for motif_finder
 motif_finder<-function(motif){
   
   #examines motifs to make sure amino acid positions are in the correct order -- sorts numerically
@@ -214,27 +214,80 @@ motif_finder<-function(motif){
   #after the previous motif subset 
   for(t in 1:length(strsplit(strsplit(motif, "*", fixed=T)[[1]][[2]], "~")[[1]])){
     AA_segments[[loci[[i]]]]<-AA_segments[[loci[[i]]]][which((AA_segments[[loci[[i]]]][,colnames(AA_segments[[loci[[i]]]])==corr_table[[loci[[i]]]][1,][str_extract(strsplit(strsplit(motif,"*",fixed=TRUE)[[1]][2],"~",fixed=TRUE)[[1]], "[0-9]+")[[t]]==corr_table[[loci[[i]]]][2,]]]==str_extract(strsplit(strsplit(motif,"*",fixed=TRUE)[[1]][2],"~",fixed=TRUE)[[1]],"[A-Z]")[[t]])==TRUE),]  
-    
-    #error message thrown if a motif isn't found (i.e. number of rows is 0)
-    if((nrow(AA_segments[[loci[[i]]]])==0)==TRUE){
-      print("Error - zero alleles match this motif. Please try again.")
-      }
   }
-  return(AA_segments[[loci[[i]]]])
+  
+  #if no motifs are found, a warning message is thrown 
+  if((nrow(AA_segments[[loci[[i]]]])==0)){
+    warning("Error - zero alleles match this motif. Please try again.")
+  }
+  
+  #if motifs are found, AA_segments[[loci[[i]]]] is returned 
+  if((nrow(AA_segments[[loci[[i]]]])!=0)){
+    return(AA_segments[[loci[[i]]]])}
+    
 }
 
+####EXAMPLES
 
-#example
-motif_finder("DRB1*26F~28E")
+#example with actual motif 
+#saved to Alleles With Motifs (AWMs)
+AWMs<-motif_finder("DRB1*26F~28E~30Y")
 
-
-
-
-
-
-
+#example with non-exisent motif 
+motif_finder("DRB1*26F~28E~30Z")
 
 
+#reads in Solberg DS
+solberg_DS<-as.data.frame(read.delim("1-locus-alleles.dat"), stringsAsFactors=F)
 
+#makes a new column with locus and trimmed allele pasted together named locus_allele
+solberg_DS$locus_allele<-paste(solberg_DS$locus, solberg_DS$allele_v3, sep="*")
+
+#orders solberg-DS by population 
+solberg_DS<-solberg_DS[order(solberg_DS$popname),]
+
+#makes an empty list named unique_AWMs, where the name of each element is after a unique AWM
+unique_AWMs<-sapply(unique(AWMs$trimmed_allele), function(x) NULL)
+
+#finds unique_AWMs in Solberg dataset and extracts the allele frequency and locus_allele column  
+for(y in 1:length(unique_AWMs)){
+unique_AWMs[[y]]<-solberg_DS[,c(2,11,14)][solberg_DS$locus_allele %in% names(unique_AWMs[y]),]}
+
+#subsets out locus_allele pairs with the motif from the alignment but aren't present in the Solberg ds
+unique_AWMs<-unique_AWMs[sapply(unique_AWMs, nrow)>0]
+
+#sets population names to a variable named popnames to NULL 
+popnames<-NULL
+
+#converts pop_name column from factor to character
+#inserts all pop_names column from unique_AWMs to popnames
+for(i in 1:length(unique_AWMs)){
+unique_AWMs[[i]][,1]<-sapply(unique_AWMs[[i]][,1], as.character)
+popnames[[i]]<-unique_AWMs[[i]][1]
+}
+
+#unlists popnames -- finds unique popnames 
+popnames<-unique(unlist(popnames))
+
+#creates a variable named Population Allele Frequencies (PAF), where each element is named after a 
+#unique popname
+#makes each element a list to take in allele frequencies in the next for loop 
+PAF<-sapply(popnames, function(x) list())
+
+#for loop for finding allele frequencies from unique_AWMs if a PAF name matches a unique_AWM element
+for(i in 1:length(PAF)){
+    for(j in 1:length(unique_AWMs)){
+      
+      #matches each PAF name to each unique_AWMs element, extracts allele frequencies from each element
+      #if that name is not found for a unique_AWMs element, "NA" is present in place of a value
+      PAF[[i]][j]<-unique_AWMs[[j]][,2][match(names(PAF[i]), unique_AWMs[[j]][,1])]
+    }
+  #unlists each PAF element, and subsets out any NAs
+  #if a PAF name has duplicates, the allele frequencies are summed
+  #PAF names with only one allele value are used and unaffected by the sum() function 
+  PAF[[i]]<-sum(unlist(PAF[[i]])[!is.na(unlist(PAF[[i]]))])
+  }
+ 
+View(PAF) 
 
 
