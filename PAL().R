@@ -1,14 +1,13 @@
 ##PAL (Population Allele Locater)
-#v 0.2
+#v 0.3
 #By: Liv Tran
-#5/15/19
+#5/21/19
 
 
 ###old script to get AA_segments
 ##REQUIRED PACKAGES 
 require(data.table)
 require(stringr)
-require(BIGDAWG)
 require(gtools)
 
 ###REQUIRED FUNCTIONS:
@@ -240,63 +239,89 @@ motif_finder("DRB1*26F~28E~30Z")
 #for the Solberg dataset 
 PAL<-function(dataset, motif){
   
-#saved to Alleles With Motifs (AWMs)
-AWMs<-motif_finder(motif)
+  #saved to Alleles With Motifs (AWMs)
+  AWMs<-motif_finder(motif)
   
-#reads in Solberg DS
-solberg_DS<-as.data.frame(read.delim(dataset), stringsAsFactors=F)
-
-#makes a new column with locus and trimmed allele pasted together named locus_allele
-solberg_DS$locus_allele<-paste(solberg_DS$locus, solberg_DS$allele_v3, sep="*")
-
-#orders solberg-DS by population 
-solberg_DS<-solberg_DS[order(solberg_DS$popname),]
-
-#makes an empty list named unique_AWMs, where the name of each element is after a unique AWM
-unique_AWMs<-sapply(unique(AWMs$trimmed_allele), function(x) NULL)
-
-#finds unique_AWMs in Solberg dataset and extracts the allele frequency and locus_allele column  
-for(y in 1:length(unique_AWMs)){
-unique_AWMs[[y]]<-solberg_DS[,c(2,11,14)][solberg_DS$locus_allele %in% names(unique_AWMs[y]),]}
-
-#subsets out locus_allele pairs with the motif from the alignment but aren't present in the Solberg ds
-unique_AWMs<-unique_AWMs[sapply(unique_AWMs, nrow)>0]
-
-#sets population names to a variable named popnames to NULL 
-popnames<-NULL
-
-#converts pop_name column from factor to character
-#inserts all pop_names column from unique_AWMs to popnames
-for(i in 1:length(unique_AWMs)){
-unique_AWMs[[i]][,1]<-sapply(unique_AWMs[[i]][,1], as.character)
-popnames[[i]]<-unique_AWMs[[i]][1]
-}
-
-#unlists popnames -- finds unique popnames 
-popnames<-unique(unlist(popnames))
-
-#creates a variable named Population Allele Frequencies (PAF), where each element is named after a 
-#unique popname
-#makes each element a list to take in allele frequencies in the next for loop 
-PAF<-sapply(popnames, function(x) list())
-
-#for loop for finding allele frequencies from unique_AWMs if a PAF name matches a unique_AWM element
-for(i in 1:length(PAF)){
+  #reads in Solberg DS
+  solberg_DS<-as.data.frame(read.delim(dataset), stringsAsFactors=F)
+  
+  #makes a new column with locus and trimmed allele pasted together named locus_allele
+  solberg_DS$locus_allele<-paste(solberg_DS$locus, solberg_DS$allele_v3, sep="*")
+  
+  #orders solberg-DS by population 
+  solberg_DS<-solberg_DS[order(solberg_DS$popname),]
+  
+  solberg_DS[,]<-sapply(solberg_DS[, ], as.character)
+  
+  #makes an empty list named unique_AWMs, where the name of each element is after a unique AWM
+  unique_AWMs<-sapply(unique(AWMs$trimmed_allele), function(x) NULL)
+  
+  #finds unique_AWMs in Solberg dataset and extracts the allele frequency and locus_allele column  
+  for(y in 1:length(unique_AWMs)){
+    unique_AWMs[[y]]<-solberg_DS[,c(2,3,5,6,11,14)][solberg_DS$locus_allele %in% names(unique_AWMs[y]),]}
+  
+  #subsets out locus_allele pairs with the motif from the alignment but aren't present in the Solberg ds
+  unique_AWMs<-unique_AWMs[sapply(unique_AWMs, nrow)>0]
+  
+  #sets population names to a variable named popnames to NULL 
+  popnames<-NULL
+  
+  #sets "to be mapped dataset" to tbm_ds
+  tbm_ds<-NULL
+  
+  #inserts all popnames column from unique_AWMs to popnames
+  #inserts popnames, continent, latitude, and longitude information into tbm_ds
+  for(i in 1:length(unique_AWMs)){
+    popnames[[i]]<-unique_AWMs[[i]][1]
+    tbm_ds[[i]]<-unique_AWMs[[i]][c(1,2,3,4)]}
+  
+  #unlists popnames -- finds unique popnames 
+  popnames<-unique(unlist(popnames))
+  
+  #melts tbm_ds data into one data frame
+  tbm_ds<-melt(tbm_ds, id.vars=c("popname", "contin", "latit", "longit"))
+  
+  #removes duplicates
+  tbm_ds<-tbm_ds[,c(1:ncol(tbm_ds))][!duplicated(tbm_ds$popname),]
+  
+  #removes L1 column based on melt 
+  tbm_ds$L1<-NULL
+  
+  #creates a variable named Population Allele Frequencies (PAF), where each element is named after a 
+  #unique popname
+  #makes each element a list to take in allele frequencies in the next for loop 
+  PAF<-sapply(popnames, function(x) list())
+  
+  #for loop for finding allele frequencies from unique_AWMs if a PAF name matches a unique_AWM element
+  for(i in 1:length(PAF)){
     for(j in 1:length(unique_AWMs)){
       
       #matches each PAF name to each unique_AWMs element, extracts allele frequencies from each element
       #if that name is not found for a unique_AWMs element, "NA" is present in place of a value
-      PAF[[i]][j]<-unique_AWMs[[j]][,2][match(names(PAF[i]), unique_AWMs[[j]][,1])]
+      PAF[[i]][j]<-unique_AWMs[[j]][,5][match(names(PAF[i]), unique_AWMs[[j]][,1])]
     }
-  #unlists each PAF element, and subsets out any NAs
-  #if a PAF name has duplicates, the allele frequencies are summed
-  #PAF names with only one allele value are used and unaffected by the sum() function 
-  PAF[[i]]<-sum(unlist(PAF[[i]])[!is.na(unlist(PAF[[i]]))])
+    
+    #unlists each PAF element, and subsets out any NAs
+    #if a PAF name has duplicates, the allele frequencies are summed
+    #PAF names with only one allele value are used and unaffected by the sum() function 
+    PAF[[i]]<-sum(as.numeric(unlist(PAF[[i]])[!is.na(unlist(PAF[[i]]))]))
+  }
+  
+  #melts PAF into a two columned df
+  PAF<-melt(PAF)
+  
+  #renames column names 
+  colnames(PAF)<-c("allele_freq", "popname")
+  
+  #merges tbm_ds with PAF information
+  tbm_ds<-merge(tbm_ds, PAF, by="popname")
+  
+  return(tbm_ds)
 }
-return(PAF)
-}
+  
 
 #example of PAL()
-PAL("1-locus-alleles.dat", "DRB1*26F~28E~30Y") 
+#saved to Heat Map Data (HMD)
+HMD<-PAL("1-locus-alleles.dat", "DRB1*26F~28E~30Y") 
 
 
