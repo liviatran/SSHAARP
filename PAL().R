@@ -31,6 +31,8 @@ countSpaces <- function(x){
 
 loci="DRB1"
 
+
+AA_segments_maker<-function(loci){
 #creates empty variables for future for loops
 start<-end<-alignment<-list()
   
@@ -198,41 +200,69 @@ pepsplit<-refexon<-AA_aligned<-AA_segments<-inDels<-corr_table<-cols<-downloaded
     #amino acids with changes will not be impacted
     for(k in 5:ncol(AA_segments[[loci[i]]])) {
       AA_segments[[loci[i]]][,k][which(AA_segments[[loci[i]]][,k]=="-")] <- AA_segments[[loci[i]]][,k][1]}  
+    
+    ##binds a new row to AA_segments at the top of the dataframe -- fills with NAs
+    AA_segments[[loci[[i]]]]<-rbind(rep(NA, ncol(AA_segments[[loci[[i]]]])), AA_segments[[loci[[i]]]])
+    
+    #fills in corresponding alignment sequence in new row
+    AA_segments[[loci[[i]]]][1,5:ncol(AA_segments[[loci[[i]]]])]<-corr_table[[loci[[i]]]][2,]
   }
+return(AA_segments)
+}
 
+
+##example of AA_segments_maker for HL
+AA_segments<-AA_segments_maker(c("A", "B", "C","DRB1"))
 
 #### start script for motif_finder
 motif_finder<-function(motif){
+
+  #extract loci information 
+  loci<-strsplit(motif, "\\*")[[1]][1]
+  
+  AA_segments<-AA_segments_maker(loci)
   
   #examines motifs to make sure amino acid positions are in the correct order -- sorts numerically
   #if they are not 
   motif<-paste(loci, sep="*",paste(mixedsort(strsplit(strsplit(motif, "*", fixed=T)[[1]][[2]], "~")[[1]]), collapse="~"))
   
+  #sets the alignmnet coordinates in the first row of AA_segments to another variable
+  alignment_corr[[loci]]<-AA_segments[[loci]][1,]
+  
   #for loop for searching amino acid motifs 
   #three total loops are run, where subsequent position*motifs are evaluated against which alleles are present
   #after the previous motif subset 
+  #each AA_segments is bound with the alignment coordinates except for the last AA_segments
   for(t in 1:length(strsplit(strsplit(motif, "*", fixed=T)[[1]][[2]], "~")[[1]])){
-    AA_segments[[loci[[i]]]]<-AA_segments[[loci[[i]]]][which((AA_segments[[loci[[i]]]][,colnames(AA_segments[[loci[[i]]]])==corr_table[[loci[[i]]]][1,][str_extract(strsplit(strsplit(motif,"*",fixed=TRUE)[[1]][2],"~",fixed=TRUE)[[1]], "[0-9]+")[[t]]==corr_table[[loci[[i]]]][2,]]]==str_extract(strsplit(strsplit(motif,"*",fixed=TRUE)[[1]][2],"~",fixed=TRUE)[[1]],"[A-Z]")[[t]])==TRUE),]  
+    AA_segments[[loci]]<-AA_segments[[loci]][which((AA_segments[[loci]][5:ncol(AA_segments[[loci]])][which((str_extract(strsplit(strsplit(motif,"*",fixed=TRUE)[[1]][2],"~",fixed=TRUE)[[1]], "[0-9]+")[[t]]==AA_segments[[loci]][1,5:ncol(AA_segments[[loci]])])==TRUE)]==str_extract(strsplit(strsplit(motif,"*",fixed=TRUE)[[1]][2],"~",fixed=TRUE)[[1]],"[A-Z]")[[t]])==TRUE),]
+    
+    if(t!=3){
+    AA_segments[[loci]]<-rbind(alignment_corr[[loci]], AA_segments[[loci]])}
   }
   
+  
+  
   #if no motifs are found, a warning message is thrown 
-  if((nrow(AA_segments[[loci[[i]]]])==0)){
+  if((nrow(AA_segments[[loci]])==0)){
     warning("Error - zero alleles match this motif. Please try again.")
   }
   
   #if motifs are found, AA_segments[[loci[[i]]]] is returned 
-  if((nrow(AA_segments[[loci[[i]]]])!=0)){
-    return(AA_segments[[loci[[i]]]])}
+  if((nrow(AA_segments[[loci]])!=0)){
+    return(AA_segments[[loci]])}
     
 }
 
 ####EXAMPLES
+
 
 #example with actual motif 
 motif_finder("DRB1*26F~28E~30Y")
 
 #example with non-exisent motif 
 motif_finder("DRB1*26F~28E~30Z")
+
+
 
 #Population Allele Locator (PAL) function
 #An independent function for getting allele frequencies from a population for a given motif 
@@ -323,5 +353,4 @@ PAL<-function(dataset, motif){
 #example of PAL()
 #saved to Heat Map Data (HMD)
 HMD<-PAL("1-locus-alleles.dat", "DRB1*26F~28E~30Y") 
-
 
