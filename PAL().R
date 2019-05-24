@@ -1,10 +1,9 @@
 ##PAL (Population Allele Locater)
-#v 0.3
+#v 0.4
 #By: Liv Tran
-#5/21/19
+#5/22/19
 
 
-###old script to get AA_segments
 ##REQUIRED PACKAGES 
 require(data.table)
 require(stringr)
@@ -29,9 +28,34 @@ countSpaces <- function(x){
   coll
 }
 
-loci="DRB1"
+
+#' HLA trimming function
+#' FROM BIGDAWG PACKAGE
+#' Trim a properly formatted HLA allele to desired number of fields.
+#' @param x HLA allele.
+#' @param Res Resolution desired.
+#' @note This function is for internal BIGDAWG use only.
+GetField <- function(x,Res) {
+  Tmp <- unlist(strsplit(as.character(x),":"))
+  if (length(Tmp)<2) {
+    return(x)
+  } else if (Res==1) {
+    return(Tmp[1])
+  } else if (Res > 1) {
+    Out <- paste(Tmp[1:Res],collapse=":")
+    return(Out)
+  }
+}
 
 
+################################# BEGIN NEW STUFF
+
+######AA_segments_maker
+#extracts alignment sequence information for a given locus from the ANHIG/IMGTHLA Github Repo
+#to produce a dataframe, where each row is specific to an allele for that locus,
+#and each column is the amino acid position, followed by which specific amino acid that allele
+#has in that position
+#the first 4 columns are locus, allele, trimmed allele, and allele_name 
 AA_segments_maker<-function(loci){
 #creates empty variables for future for loops
 start<-end<-alignment<-list()
@@ -210,17 +234,29 @@ pepsplit<-refexon<-AA_aligned<-AA_segments<-inDels<-corr_table<-cols<-downloaded
 return(AA_segments)
 }
 
-
-##example of AA_segments_maker for HL
+##example of AA_segments_maker for HLA
 AA_segments<-AA_segments_maker(c("A", "B", "C","DRB1"))
 
-#### start script for motif_finder
+
+#####motif_finder
+#narrows down AA_segments to only alleles that have a given amino acid motif 
 motif_finder<-function(motif){
+
+  alignment_corr<-NULL
 
   #extract loci information 
   loci<-strsplit(motif, "\\*")[[1]][1]
   
+  #obtains AA_segments df
   AA_segments<-AA_segments_maker(loci)
+  
+  #since "DRB" is used as the search criteria for the alignment (IMGTHLA/ANHIG groups all DRB loci
+  #into one alignment, AA_segments consists of all DRB loci, not just DRB1)
+  #if the loci is DRB1, this conditional statement subsets AA_segments to only DRB1 loci,
+  #and if "NA" is present in the locus column for the alignment sequence coordinate row 
+  if(loci=="DRB1"){
+    AA_segments[[loci]]<-subset(AA_segments[[loci]], (loci==AA_segments[[loci]]$locus) | (is.na(AA_segments[[loci]]$locus)))
+  }
   
   #examines motifs to make sure amino acid positions are in the correct order -- sorts numerically
   #if they are not 
@@ -235,6 +271,7 @@ motif_finder<-function(motif){
   #each AA_segments is bound with the alignment coordinates except for the last AA_segments
   for(t in 1:length(strsplit(strsplit(motif, "*", fixed=T)[[1]][[2]], "~")[[1]])){
     AA_segments[[loci]]<-AA_segments[[loci]][which((AA_segments[[loci]][5:ncol(AA_segments[[loci]])][which((str_extract(strsplit(strsplit(motif,"*",fixed=TRUE)[[1]][2],"~",fixed=TRUE)[[1]], "[0-9]+")[[t]]==AA_segments[[loci]][1,5:ncol(AA_segments[[loci]])])==TRUE)]==str_extract(strsplit(strsplit(motif,"*",fixed=TRUE)[[1]][2],"~",fixed=TRUE)[[1]],"[A-Z]")[[t]])==TRUE),]
+    
     
     if(t!=3){
     AA_segments[[loci]]<-rbind(alignment_corr[[loci]], AA_segments[[loci]])}
@@ -253,8 +290,6 @@ motif_finder<-function(motif){
     
 }
 
-####EXAMPLES
-
 
 #example with actual motif 
 motif_finder("DRB1*26F~28E~30Y")
@@ -262,8 +297,7 @@ motif_finder("DRB1*26F~28E~30Y")
 #example with non-exisent motif 
 motif_finder("DRB1*26F~28E~30Z")
 
-
-
+#################
 #Population Allele Locator (PAL) function
 #An independent function for getting allele frequencies from a population for a given motif 
 #for the Solberg dataset 
@@ -317,10 +351,16 @@ PAL<-function(dataset, motif){
   #removes L1 column based on melt 
   tbm_ds$L1<-NULL
   
+  #creates a dataframe with populations that do not have a given motif
+  #inserts allele_freq as 0 for those populations
+  nomotif_pops<-data.frame(unique(solberg_DS[,c(2,3,5,6)])[which((unique(solberg_DS$popname) %in% tbm_ds$popname)==FALSE),],
+                           "allele_freq"=rep("0", length(unique(solberg_DS$popname)[which((unique(solberg_DS$popname) %in% tbm_ds$popname)==FALSE)])),
+                           stringsAsFactors = F)
+  
   #creates a variable named Population Allele Frequencies (PAF), where each element is named after a 
   #unique popname
   #makes each element a list to take in allele frequencies in the next for loop 
-  PAF<-sapply(popnames, function(x) list())
+  PAF<-sapply(unique(solberg_DS$popname), function(x) list())
   
   #for loop for finding allele frequencies from unique_AWMs if a PAF name matches a unique_AWM element
   for(i in 1:length(PAF)){
@@ -343,12 +383,13 @@ PAL<-function(dataset, motif){
   #renames column names 
   colnames(PAF)<-c("allele_freq", "popname")
   
-  #merges tbm_ds with PAF information
-  tbm_ds<-merge(tbm_ds, PAF, by="popname")
+  #merges tbm_ds with PAF information, binds newly merged tbm_ds df with nomotif_pops
+  tbm_ds<-rbind(nomotif_pops, (merge(tbm_ds, PAF, by="popname")))
   
-  return(tbm_ds)
+  #orders tbm_ds by population name
+  tbm_ds<-tbm_ds[order(tbm_ds$popname),]
 }
-  
+
 
 #example of PAL()
 #saved to Heat Map Data (HMD)
