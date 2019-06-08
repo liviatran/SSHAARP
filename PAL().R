@@ -1,13 +1,14 @@
 ##PAL (Population Allele Locater)
-#v 0.4
+#v 0.6
 #By: Liv Tran
-#5/22/19
+#6/7/19
 
 
 ##REQUIRED PACKAGES 
 require(data.table)
 require(stringr)
 require(gtools)
+require(BIGDAWG)
 
 ###REQUIRED FUNCTIONS:
 #function to count spaces in between regions of interest
@@ -26,25 +27,6 @@ countSpaces <- function(x){
     }
   }
   coll
-}
-
-
-#' HLA trimming function
-#' FROM BIGDAWG PACKAGE
-#' Trim a properly formatted HLA allele to desired number of fields.
-#' @param x HLA allele.
-#' @param Res Resolution desired.
-#' @note This function is for internal BIGDAWG use only.
-GetField <- function(x,Res) {
-  Tmp <- unlist(strsplit(as.character(x),":"))
-  if (length(Tmp)<2) {
-    return(x)
-  } else if (Res==1) {
-    return(Tmp[1])
-  } else if (Res > 1) {
-    Out <- paste(Tmp[1:Res],collapse=":")
-    return(Out)
-  }
 }
 
 
@@ -247,8 +229,11 @@ motif_finder<-function(motif){
   #extract loci information 
   loci<-strsplit(motif, "\\*")[[1]][1]
   
+  #if AA_segments does not exist (i.e not previously already downloaded and in the local
+  #environment) then generate AA_segments)
+  if(!exists("AA_segments")){
   #obtains AA_segments df
-  AA_segments<-AA_segments_maker(loci)
+  AA_segments<-AA_segments_maker(loci)}
   
   #since "DRB" is used as the search criteria for the alignment (IMGTHLA/ANHIG groups all DRB loci
   #into one alignment, AA_segments consists of all DRB loci, not just DRB1)
@@ -297,32 +282,40 @@ motif_finder("DRB1*26F~28E~30Y")
 #example with non-exisent motif 
 motif_finder("DRB1*26F~28E~30Z")
 
+#a function to manipulate the Solberg dataset -- will be adapted to also work for
+#AFND data 
+dataSubset<-function(dataset){
+#reads in Solberg DS
+solberg_DS<-as.data.frame(read.delim(dataset), stringsAsFactors=F)
+
+#makes a new column with locus and trimmed allele pasted together named locus_allele
+solberg_DS$locus_allele<-paste(solberg_DS$locus, solberg_DS$allele_v3, sep="*")
+
+#orders solberg-DS by population 
+solberg_DS<-solberg_DS[order(solberg_DS$popname),]
+
+solberg_DS[,]<-sapply(solberg_DS[, ], as.character)
+
+return(solberg_DS)}
+
+
 #################
 #Population Allele Locator (PAL) function
 #An independent function for getting allele frequencies from a population for a given motif 
 #for the Solberg dataset 
-PAL<-function(dataset, motif){
+PAL<-function(gdataset, motif){
   
   #saved to Alleles With Motifs (AWMs)
   AWMs<-motif_finder(motif)
   
-  #reads in Solberg DS
-  solberg_DS<-as.data.frame(read.delim(dataset), stringsAsFactors=F)
-  
-  #makes a new column with locus and trimmed allele pasted together named locus_allele
-  solberg_DS$locus_allele<-paste(solberg_DS$locus, solberg_DS$allele_v3, sep="*")
-  
-  #orders solberg-DS by population 
-  solberg_DS<-solberg_DS[order(solberg_DS$popname),]
-  
-  solberg_DS[,]<-sapply(solberg_DS[, ], as.character)
-  
+  solberg_DS<-dataSubset(gdataset)
+    
   #makes an empty list named unique_AWMs, where the name of each element is after a unique AWM
   unique_AWMs<-sapply(unique(AWMs$trimmed_allele), function(x) NULL)
   
   #finds unique_AWMs in Solberg dataset and extracts the allele frequency and locus_allele column  
   for(y in 1:length(unique_AWMs)){
-    unique_AWMs[[y]]<-solberg_DS[,c(2,3,5,6,11,14)][solberg_DS$locus_allele %in% names(unique_AWMs[y]),]}
+    unique_AWMs[[y]]<-solberg_DS[,c(2,3,4,5,6,11,14)][solberg_DS$locus_allele %in% names(unique_AWMs[y]),]}
   
   #subsets out locus_allele pairs with the motif from the alignment but aren't present in the Solberg ds
   unique_AWMs<-unique_AWMs[sapply(unique_AWMs, nrow)>0]
@@ -337,13 +330,13 @@ PAL<-function(dataset, motif){
   #inserts popnames, continent, latitude, and longitude information into tbm_ds
   for(i in 1:length(unique_AWMs)){
     popnames[[i]]<-unique_AWMs[[i]][1]
-    tbm_ds[[i]]<-unique_AWMs[[i]][c(1,2,3,4)]}
+    tbm_ds[[i]]<-unique_AWMs[[i]][c(1,2,3,4,5)]}
   
   #unlists popnames -- finds unique popnames 
   popnames<-unique(unlist(popnames))
   
   #melts tbm_ds data into one data frame
-  tbm_ds<-melt(tbm_ds, id.vars=c("popname", "contin", "latit", "longit"))
+  tbm_ds<-melt(tbm_ds, id.vars=c("popname", "contin", "latit", "longit", "complex"))
   
   #removes duplicates
   tbm_ds<-tbm_ds[,c(1:ncol(tbm_ds))][!duplicated(tbm_ds$popname),]
@@ -353,7 +346,7 @@ PAL<-function(dataset, motif){
   
   #creates a dataframe with populations that do not have a given motif
   #inserts allele_freq as 0 for those populations
-  nomotif_pops<-data.frame(unique(solberg_DS[,c(2,3,5,6)])[which((unique(solberg_DS$popname) %in% tbm_ds$popname)==FALSE),],
+  nomotif_pops<-data.frame(unique(solberg_DS[,c(2,3,4,5,6)])[which((unique(solberg_DS$popname) %in% tbm_ds$popname)==FALSE),],
                            "allele_freq"=rep("0", length(unique(solberg_DS$popname)[which((unique(solberg_DS$popname) %in% tbm_ds$popname)==FALSE)])),
                            stringsAsFactors = F)
   
@@ -368,7 +361,7 @@ PAL<-function(dataset, motif){
       
       #matches each PAF name to each unique_AWMs element, extracts allele frequencies from each element
       #if that name is not found for a unique_AWMs element, "NA" is present in place of a value
-      PAF[[i]][j]<-unique_AWMs[[j]][,5][match(names(PAF[i]), unique_AWMs[[j]][,1])]
+      PAF[[i]][j]<-unique_AWMs[[j]][,6][match(names(PAF[i]), unique_AWMs[[j]][,1])]
     }
     
     #unlists each PAF element, and subsets out any NAs
@@ -388,6 +381,8 @@ PAL<-function(dataset, motif){
   
   #orders tbm_ds by population name
   tbm_ds<-tbm_ds[order(tbm_ds$popname),]
+  
+  return(tbm_ds)
 }
 
 
@@ -395,3 +390,5 @@ PAL<-function(dataset, motif){
 #saved to Heat Map Data (HMD)
 HMD<-PAL("1-locus-alleles.dat", "DRB1*26F~28E~30Y") 
 
+
+     
