@@ -347,10 +347,21 @@ PAL<-function(gdataset, motif){
   #creates a dataframe with populations that do not have a given motif 
   #by comparing tbm_ds population names to all population names in unique_AWMs for each allele
   #inserts allele_freq as 0 for those populations
-  nomotif_pops<-data.frame(unique(solberg_DS[,c(2,3,4,5,6)])[which((popnames %in% tbm_ds$popname)==FALSE),],
-                           "allele_freq"=rep("0", length(popnames[which((popnames %in% tbm_ds$popname)==FALSE)])),
-                           stringsAsFactors = F)
+  nomotif_pops<-data.frame(
+    "popname"=unique(solberg_DS$popname)[which((unique(solberg_DS$popname) %in% popnames)==FALSE)],
+    "allele_freq"=rep("0", length(unique(solberg_DS$popname)[which((unique(solberg_DS$popname) %in% popnames)==FALSE)]),
+                      ), stringsAsFactors = F)
   
+  #merges nomotif_pops with solberg_DS for other column information by popname
+  #i.e. coordinates, complexity, and continent
+  nomotif_pops<-merge(nomotif_pops, solberg_DS[,c(2,3,4,5,6)], by="popname")
+  
+  #removes duplicate popnames
+  nomotif_pops<-nomotif_pops[!duplicated(nomotif_pops$popname),]
+  
+  #reorders columns with allele_freq last
+  nomotif_pops<-nomotif_pops[,c("popname", "contin", "complex", "latit", "longit", "allele_freq")]
+
   #creates a variable named Population Allele Frequencies (PAF), where each element is named after a 
   #unique popname
   #makes each element a list to take in allele frequencies in the next for loop 
@@ -377,16 +388,15 @@ PAL<-function(gdataset, motif){
   #renames column names 
   colnames(PAF)<-c("allele_freq", "popname")
   
-  #merge tbm_ds and PAF by population name to get allele frequencies 
-  tbm_ds<-merge(tbm_ds, PAF, by="popname")
-  
-  #if there are rows present in nomotif_pops, rbind it to the tbm_ds
-  if(nrow(nomotif_pops)!=0){
-    #merges tbm_ds with PAF information, binds newly merged tbm_ds df with nomotif_pops
-    tbm_ds<-rbind(nomotif_pops, tbm_ds)}
+  #merges tbm_ds with PAF information, binds newly merged tbm_ds df with nomotif_pops
+  tbm_ds<-rbind(nomotif_pops, (merge(tbm_ds, PAF, by="popname")))
   
   #orders tbm_ds by population name
   tbm_ds<-tbm_ds[order(tbm_ds$popname),]
+  
+  #gives new sequential numeric row names, since merging and data manipulation messed up row
+  #names
+  row.names(tbm_ds)<-seq(1:nrow(tbm_ds))
   
   return(tbm_ds)
 }
@@ -397,4 +407,4 @@ PAL<-function(gdataset, motif){
 HMD<-PAL("1-locus-alleles.dat", "DRB1*26F~28E~30Y") 
 
 
-     
+
