@@ -1,7 +1,7 @@
 ##PAL (Population Allele Locater)
-#v 0.6
+#v 0.7
 #By: Liv Tran
-#6/7/19
+#6/11/19
 
 
 ##REQUIRED PACKAGES 
@@ -344,10 +344,11 @@ PAL<-function(gdataset, motif){
   #removes L1 column based on melt 
   tbm_ds$L1<-NULL
   
-  #creates a dataframe with populations that do not have a given motif
+  #creates a dataframe with populations that do not have a given motif 
+  #by comparing tbm_ds population names to all population names in unique_AWMs for each allele
   #inserts allele_freq as 0 for those populations
-  nomotif_pops<-data.frame(unique(solberg_DS[,c(2,3,4,5,6)])[which((unique(solberg_DS$popname) %in% tbm_ds$popname)==FALSE),],
-                           "allele_freq"=rep("0", length(unique(solberg_DS$popname)[which((unique(solberg_DS$popname) %in% tbm_ds$popname)==FALSE)])),
+  nomotif_pops<-data.frame(unique(solberg_DS[,c(2,3,4,5,6)])[which((popnames %in% tbm_ds$popname)==FALSE),],
+                           "allele_freq"=rep("0", length(popnames[which((popnames %in% tbm_ds$popname)==FALSE)])),
                            stringsAsFactors = F)
   
   #creates a variable named Population Allele Frequencies (PAF), where each element is named after a 
@@ -376,8 +377,13 @@ PAL<-function(gdataset, motif){
   #renames column names 
   colnames(PAF)<-c("allele_freq", "popname")
   
-  #merges tbm_ds with PAF information, binds newly merged tbm_ds df with nomotif_pops
-  tbm_ds<-rbind(nomotif_pops, (merge(tbm_ds, PAF, by="popname")))
+  #merge tbm_ds and PAF by population name to get allele frequencies 
+  tbm_ds<-merge(tbm_ds, PAF, by="popname")
+  
+  #if there are rows present in nomotif_pops, rbind it to the tbm_ds
+  if(nrow(nomotif_pops)!=0){
+    #merges tbm_ds with PAF information, binds newly merged tbm_ds df with nomotif_pops
+    tbm_ds<-rbind(nomotif_pops, tbm_ds)}
   
   #orders tbm_ds by population name
   tbm_ds<-tbm_ds[order(tbm_ds$popname),]
