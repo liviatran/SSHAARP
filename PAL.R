@@ -1,4 +1,4 @@
-##PAL (Population Allele Locater)
+##PAL ()(Population Allele Locater)
 #v 0.9
 #By: Liv Tran
 #6/13/19
