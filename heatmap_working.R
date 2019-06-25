@@ -115,7 +115,7 @@ cat(decile_interval, file="deciles")
 gmt.system("makecpt -Cseis -Iz -T0/`awk '{print $1}' max_cpt`/`awk '{print $2}' max_cpt` > decile.cpt")
 
 #adds color scale to basemap based on cpt provided
-gmt.system("psscale -D0.1i/1.1i/2i/0.3i -Cdecile.cpt -L -O -K >> basemap.ps")
+gmt.system("psscale -D0.1i/1.1i/2i/0.3i -Cdecile.cpt -Np -L -O -K >> basemap.ps")
 
 #overlays more coastlines with pscoast
 gmt.system("pscoast -JM6i -R-180/180/-60/80 -A100000 -Gc -O -K >> basemap.ps")
