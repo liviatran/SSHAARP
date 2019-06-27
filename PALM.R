@@ -4,6 +4,14 @@
 #6/26/19
 
 
+#Population Allele Locating Mapmaker (PALM) function
+#An independent function for getting allele frequencies from a population for a given motif 
+#for the Solberg dataset, and making heatmaps from allele frequency data by using the GMT
+#R package and calling GMT commands with bash script through gmt.system() in the GMT R package
+#output is a jpg heatmap that is saved to the user's working environment 
+
+
+
 ##REQUIRED PACKAGES 
 require(data.table)
 require(stringr)
@@ -372,11 +380,7 @@ DAMP<-function(data, filter_migrant=TRUE){
 
 
 #################
-#Population Allele Locating Mapmaker (PALM) function
-#An independent function for getting allele frequencies from a population for a given motif 
-#for the Solberg dataset, and making heatmaps from allele frequency data by using the GMT
-#R package and calling GMT commands with bash script through gmt.system() in the GMT R package
-#output is a jpg heatmap that is saved to the user's working environment 
+
 PALM<-function(gdataset, motif){
 
   #uses dataSubset to read and manipulate the Solberg dataset
@@ -503,8 +507,7 @@ PALM<-function(gdataset, motif){
   gmt.system("psconvert basemap.ps -A -Tj")
   }
 
-#example of PAL()
-#saved to Heat Map Data (HMD)
+#example of PALM()
 PALM("1-locus-alleles.dat", "DRB1*26F~28E~30Y")
 
 
