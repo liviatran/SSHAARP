@@ -1,22 +1,21 @@
-##PALM ()(Population Allele Locating Mapmaker)
-#v 1.0
+#PALM - Popuation Allele Locating Mapmaker script 
+#v 1.1
 #By: Liv Tran
-#6/26/19
+#7/5/19
 
-
-#Population Allele Locating Mapmaker (PALM) function
-#An independent function for getting allele frequencies from a population for a given motif 
-#for the Solberg dataset, and making heatmaps from allele frequency data by using the GMT
-#R package and calling GMT commands with bash script through gmt.system() in the GMT R package
+#This script contains software developed to get allele frequencies from a 
+#population for a given motif from the Solberg dataset, and making heatmaps from 
+#allele frequency data by using the GMT R package and calling GMT commands with 
+#bash script through gmt.system() in the GMT R package
 #output is a jpg heatmap that is saved to the user's working environment 
-
-
 
 ##REQUIRED PACKAGES 
 require(data.table)
 require(stringr)
 require(gtools)
 require(BIGDAWG)
+require(gmt)
+require(DescTools)
 
 ###REQUIRED FUNCTIONS:
 #function to count spaces in between regions of interest
@@ -36,9 +35,6 @@ countSpaces <- function(x){
   }
   coll
 }
-
-
-################################# BEGIN NEW STUFF
 
 ######AA_segments_maker
 #extracts alignment sequence information for a given locus from the ANHIG/IMGTHLA Github Repo
@@ -291,8 +287,7 @@ motif_finder("DRB1*26F~28E~30Y")
 motif_finder("DRB1*26F~28E~30Z")
 
 
-#a function to manipulate the Solberg dataset -- will be adapted to also work for
-#AFND data 
+#a function to manipulate the Solberg dataset -- will be adjusted to work with AFND data
 dataSubset<-function(dataset, motif){
 #reads in Solberg DS
 solberg_DS<-as.data.frame(read.delim(dataset), stringsAsFactors=F)
@@ -311,12 +306,11 @@ solberg_DS<-subset(solberg_DS, solberg_DS$locus==strsplit(motif, "\\*")[[1]][1])
 return(solberg_DS)}
 
 
-###conversions for latitude and longitude
-#converts coordinates to appropriate enumerations based on cardinal directions -- inserts back
-#into appropriate rows in HMD
+#coordinate_converter function
+#converts latitude and longtidue to appropriate enumerations based on cardinal directions 
 #NORTH and EAST are positive
 #N = above equator
-#E = east the prime meridian 
+#E = east of the prime meridian 
 #SOUTH AND WEST ARE NEGATIVE
 #S = below equator
 #W = west of the prime meridian 
@@ -378,10 +372,10 @@ DAMP<-function(data, filter_migrant=TRUE){
   return(motif_coords)
 }
 
-
-#################
-
-PALM<-function(gdataset, motif){
+#PALM () function  -- Population Allele Locating Mapmaker 
+##default for color is set to TRUE,
+#where color defines whether the user wants grayscale or colorscale heatmap 
+PALM<-function(gdataset, motif, color=TRUE){
 
   #uses dataSubset to read and manipulate the Solberg dataset
   solberg_DS<-dataSubset(gdataset, motif)
@@ -454,8 +448,15 @@ PALM<-function(gdataset, motif){
   #creates basemap with correct motif 
   gmt.system("psbasemap -JM6i -R-180/180/-60/80 -B0:.`cat motif`: -K > basemap.ps")
   
+  #uses white background to fill landmasses if color=T
+  if(color==TRUE){
   #overlays relevant continents onto basemap 
-  gmt.system("pscoast -JM6i -R-180/180/-60/80 -A30000 -B0 -G200 -W0.25p -O -K >> basemap.ps")	
+  gmt.system("pscoast -JM6i -R-180/180/-60/80 -A30000 -B0 -G200 -W0.25p -O -K >> basemap.ps")}
+  
+  #uses a hashed background to fill landmasses if color=F
+  if(color==FALSE){
+    gmt.system("pscoast -JM6i -R-180/180/-60/80 -A30000 -B0 -Gp61 -W0.25p -O -K >> basemap.ps")	
+  }
   
   #gets upperbound for allele frequencies
   gmt.system("awk '{print $3}' motif.xyz | sort -r | head -1 > upperbound")
@@ -475,10 +476,18 @@ PALM<-function(gdataset, motif){
   #writes decile interval without any line breaks
   cat(decile_interval, file="deciles")
   
+  #uses seis color palette if color=T
+  if(color==TRUE){
   #makes custom CPT with increments of max_frequency/10 for deciles
   #specifically calls on max_cpt for max frequency and decile increments 
   gmt.system("makecpt -Cseis -Iz -T0/`awk '{print $1}' max_cpt`/`awk '{print $2}' max_cpt` > decile.cpt")
+  }
   
+  #uses grayscale color palette if color=F
+  if(color==FALSE){
+    gmt.system("makecpt -Cgray -Iz -T0/`awk '{print $1}' max_cpt`/`awk '{print $2}' max_cpt` > decile.cpt")
+    
+  }
   #adds color scale to basemap based on cpt provided
   gmt.system("psscale -D0.1i/1.1i/2i/0.3i -Cdecile.cpt -Np -L -O -K >> basemap.ps")
   
@@ -486,7 +495,7 @@ PALM<-function(gdataset, motif){
   gmt.system("pscoast -JM6i -R-180/180/-60/80 -A100000 -Gc -O -K >> basemap.ps")
   
   #clips/masks map areas with no data table coverage -- radius of influence increased to 900 km 
-  gmt.system("psmask motif.xyz -R-180/180/-60/80 -I3 -JM6i -S900k -O -K >> basemap.ps")
+  gmt.system("psmask motif.xyz -R-180/180/-60/80 -I3 -JM6i -S850k -O -K >> basemap.ps")
   
   #grids .grd file onto map 
   gmt.system("grdimage motif.grd -Cdecile.cpt  -JM6i -R-180/180/-60/80 -O -K >> basemap.ps")
@@ -498,17 +507,26 @@ PALM<-function(gdataset, motif){
   gmt.system("psxy motif.xyz -R-180/180/-60/80 -JM6i -A -G255 -W0.5p -Sc.05 -O -K >> basemap.ps")
   
   #calls psmask again to terminate clip path with -C parameter
-  gmt.system("psmask motif.xyz -R-180/180/-60/80 -I3 -JM6i -S900k -C -O -K >> basemap.ps")
+  gmt.system("psmask motif.xyz -R-180/180/-60/80 -I3 -JM6i -S850k -C -O -K >> basemap.ps")
   
   #calls pcoast again to re-establish coastlines and -Q parameter to quit clipping
-  gmt.system("pscoast -JM6i -R-180/180/-60/80 -A10000 -W.5p -O -Q  >>  basemap.ps")
+  gmt.system("pscoast -JM6i -R-180/180/-60/80 -A10000 -W0.5 -O -Q  >>  basemap.ps")
   
   #converts ps map to jpg -- saves into local environment 
-  gmt.system("psconvert basemap.ps -A -Tj")
+  #requires Ghostscript in order to execute command 
+  gmt.system("psconvert basemap.ps -A -Tj -P -Qg4 -E2000")
   }
 
-#example of PALM()
+#example of PALM() where output has color
 PALM("1-locus-alleles.dat", "DRB1*26F~28E~30Y")
+
+#example of PALM() where output has no color
+PALM("1-locus-alleles.dat", "DRB1*26F~28E~30Y", color=FALSE)
+
+
+
+
+
 
 
 
