@@ -1,7 +1,7 @@
 #PALM - Popuation Allele Locating Mapmaker script 
-#v 1.1
+#v 1.2
 #By: Liv Tran
-#7/5/19
+#7/11/19
 
 #This script contains software developed to get allele frequencies from a 
 #population for a given motif from the Solberg dataset, and making heatmaps from 
@@ -347,29 +347,7 @@ DAMP<-function(data, filter_migrant=TRUE){
     #filters out migrant populations in complexity column 
     heatmapdata<-heatmapdata[which((grepl("mig", heatmapdata$complex))==FALSE),]}
   
-  coords<-sapply(heatmapdata$popname, function(x) list())
-  
-  #gets coordinate and allele frequency information for each allele
-  for(i in 1:length(coords)){
-    coords[[i]]<-heatmapdata[,c(4,5,6)][heatmapdata[,1] %in% names(coords)[[i]],]}
-  
-  #melts all data together into one dataframe 
-  motif_coords<-melt(coords, id.vars=c("latit", "longit"))
-  
-  #gets rid of melt joint variable
-  motif_coords$variable<-NULL
-  
-  #sets allele freq to numeric class
-  motif_coords$value<-as.numeric(as.character(motif_coords$value))
-  
-  #sets coordinates to numeric class and rounds to 4 digits 
-  motif_coords$latit<-round(as.numeric(motif_coords$latit), digits = 4)
-  motif_coords$longit<-round(as.numeric(motif_coords$longit), digits=4)
-  
-  #renames column names
-  colnames(motif_coords)<-c("lat", "long", "allele_freq", "pop")
-  
-  return(motif_coords)
+  return(heatmapdata)
 }
 
 #PALM () function  -- Population Allele Locating Mapmaker 
