@@ -332,28 +332,13 @@ coordinate_converter<-function(heatmapdata){
   }
   return(heatmapdata)}
 
-#DAta Map Preparation function
-#prepares heat map data to be visualized by GMT
-#filter_migrant parameter gives options to filter out admixed popultions(#mig and OTH)
-#default is TRUE
-DAMP<-function(data, filter_migrant=TRUE){
-  
-  data<-coordinate_converter(data)
-  
-  if(filter_migrant==TRUE){
-    #filters out admixed, migrant OTH populations
-    heatmapdata<-data[data$contin!="OTH",]
-    
-    #filters out migrant populations in complexity column 
-    heatmapdata<-heatmapdata[which((grepl("mig", heatmapdata$complex))==FALSE),]}
-  
-  return(heatmapdata)
-}
 
 #PALM () function  -- Population Allele Locating Mapmaker 
 ##default for color is set to TRUE,
 #where color defines whether the user wants grayscale or colorscale heatmap 
-PALM<-function(gdataset, motif, color=TRUE){
+##default for filter_migrant is set to TRUE, where migrant admixed populations and OTH populations
+#are filtered out
+PALM<-function(gdataset, motif, color=TRUE, filter_migrant=TRUE){
 
   #uses dataSubset to read and manipulate the Solberg dataset
   solberg_DS<-dataSubset(gdataset, motif)
@@ -399,12 +384,22 @@ PALM<-function(gdataset, motif, color=TRUE){
   #which contains summed up allele frequencies, and relevant contin, complex, locus*allele, and coordinate information
   tbm_ds<-merge(PAF, solberg_DS[!duplicated(solberg_DS$popname),], by="popname")[,c("popname","contin", "complex", "latit", "longit", "allele_freq")]
 
-  motif_map_df<-DAMP(tbm_ds)
-
-  gmt_converted_data<-motif_map_df[,c(1,2,3,4)]
+  #converts coordinates to proper enumerations
+  tbm_ds<-coordinate_converter(tbm_ds)
   
+  #filters out migrant populations if filter_migrant==TRUE
+  if(filter_migrant==TRUE){
+    #filters out admixed, migrant OTH populations
+    motif_map_df<-tbm_ds[tbm_ds$contin!="OTH",]
+    
+    #filters out migrant populations in complexity column 
+    motif_map_df<-motif_map_df[which((grepl("mig", motif_map_df$complex))==FALSE),]}
+  
+  #specifies certain rows from motif_map_df to go into a new variable, gmt_converted_data
+  gmt_converted_data<-motif_map_df[,c(1,4,5,6)]
+
   #rerranges format 
-  gmt_converted_data<-gmt_converted_data[,c("long", "lat", "allele_freq", "pop")]
+  gmt_converted_data<-gmt_converted_data[,c("longit", "latit", "allele_freq", "popname")]
 
   #calls function to convert R object gmt_converted_data to GMT formatted data 
   #outputs converted data into local environment 
@@ -500,11 +495,5 @@ PALM("1-locus-alleles.dat", "DRB1*26F~28E~30Y")
 
 #example of PALM() where output has no color
 PALM("1-locus-alleles.dat", "DRB1*26F~28E~30Y", color=FALSE)
-
-
-
-
-
-
 
 
