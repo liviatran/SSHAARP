@@ -1,7 +1,7 @@
 #PALM - Popuation Allele Locating Mapmaker script 
-#v 1.2
+#v 1.3
 #By: Liv Tran
-#7/11/19
+#7/12/19
 
 #This script contains software developed to get allele frequencies from a 
 #population for a given motif from the Solberg dataset, and making heatmaps from 
@@ -261,27 +261,25 @@ motif_finder<-function(motif){
   for(t in 1:length(strsplit(strsplit(motif, "*", fixed=T)[[1]][[2]], "~")[[1]])){
     AA_segments[[loci]]<-AA_segments[[loci]][which((AA_segments[[loci]][5:ncol(AA_segments[[loci]])][which((str_extract(strsplit(strsplit(motif,"*",fixed=TRUE)[[1]][2],"~",fixed=TRUE)[[1]], "[0-9]+")[[t]]==AA_segments[[loci]][1,5:ncol(AA_segments[[loci]])])==TRUE)]==str_extract(strsplit(strsplit(motif,"*",fixed=TRUE)[[1]][2],"~",fixed=TRUE)[[1]],"[A-Z]")[[t]])==TRUE),]
     
-    
-    if(t!=3){
     AA_segments[[loci]]<-rbind(alignment_corr[[loci]], AA_segments[[loci]])}
-  }
-  
-  
+
   
   #if no motifs are found, a warning message is thrown 
-  if((nrow(AA_segments[[loci]])==0)){
+  if((nrow(AA_segments[[loci]])==1)){
     warning("Error - zero alleles match this motif. Please try again.")
   }
   
   #if motifs are found, AA_segments[[loci[[i]]]] is returned 
-  if((nrow(AA_segments[[loci]])!=0)){
+  if((nrow(AA_segments[[loci]])!=1)){
     return(AA_segments[[loci]])}
     
 }
 
 
 #example with actual motif 
-motif_finder("DRB1*26F~28E~30Y")
+X<-motif_finder("DRB1*26F~28E~30Y")
+
+X[c(1,5,9,10), 1:65]
 
 #example with non-existent motif 
 motif_finder("DRB1*26F~28E~30Z")
