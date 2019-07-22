@@ -277,9 +277,7 @@ motif_finder<-function(motif){
 
 
 #example with actual motif 
-X<-motif_finder("DRB1*26F~28E~30Y")
-
-X[c(1,5,9,10), 1:65]
+motif_finder("DRB1*26F~28E~30Y")
 
 #example with non-existent motif 
 motif_finder("DRB1*26F~28E~30Z")
